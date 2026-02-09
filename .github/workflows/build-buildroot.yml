@@ -1,4 +1,4 @@
-name: Build Buildroot
+name: Build Buildroot (ARM Native)
 
 on:
   repository_dispatch:
@@ -16,35 +16,43 @@ on:
 
 env:
   REPO_URL: https://github.com/buildroot/buildroot
-  REPO_BRANCH: 2020.05.x
+  REPO_BRANCH: 2025.08.x
   CONFIG_FILE: .config
   SSH_ACTIONS: false
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
-  UPLOAD_COWTRANSFER: false
-  UPLOAD_WETRANSFER: false
   TZ: Asia/Shanghai
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    # 更改为 ARM 架构的 Runner
+    # 注意：如果不具备 GitHub Team/Enterprise 权限，可能需要使用自托管 runner (self-hosted)
+    runs-on: ubuntu-24.04-arm
     if: github.event.repository.owner.id == github.event.sender.id
 
     steps:
     - name: Checkout
-      uses: actions/checkout@master
+      uses: actions/checkout@v4  # 升级到 v4
 
     - name: Initialization environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        # 清理旧软件源和不必要的软件（针对 ARM 环境进行了简化）
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(curl -fsSL git.io/depends-ubuntu-1804)
+        
+        # 安装 Buildroot 编译所需的依赖 (替代了原脚本中过期的 curl 脚本)
+        sudo -E apt-get -qq install -y build-essential libncurses5-dev \
+          libncursesw5-dev git bc unzip rsync python3 cpio wget \
+          file unzip rsync python3-distutils bzip2 linux-headers-generic
+          
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
-        sudo apt install wget git bc bison linux-headers-$(uname -r)
+        
+        # 设置时区
         sudo timedatectl set-timezone "$TZ"
+        
+        # 创建工作目录
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
@@ -69,19 +77,29 @@ jobs:
       id: compile
       run: |
         cd buildroot
-        echo -e "$(nproc) thread compile"
+        echo "Compile threads: $(nproc)"
+        
+        # 开始编译
         make -j$(nproc) || make -j1 || make -j1 V=s
-        echo "::set-output name=status::success"
+        
+        # 更新 output 语法 (原 ::set-output 已弃用)
+        echo "status=success" >> $GITHUB_OUTPUT
+        
+        # 提取设备名称
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
-        [ -s DEVICE_NAME ] && echo "::set-env name=DEVICE_NAME::_$(cat DEVICE_NAME)"
-        echo "::set-env name=FILE_DATE::_$(date +"%Y%m%d%H%M")"
+        
+        # 更新 env 语法 (原 ::set-env 已弃用)
+        if [ -s DEVICE_NAME ]; then
+          echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
+        fi
+        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
     - name: Check space usage
       if: (!cancelled())
       run: df -hT
 
     - name: Upload bin directory
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v4 # 升级到 v4
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
         name: buildroot_target${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
@@ -92,13 +110,12 @@ jobs:
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
         cd buildroot/output/images
-        echo "::set-env name=FIRMWARE::$PWD"
-        echo "::set-output name=status::success"
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
 
     - name: Upload firmware directory
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v4 # 升级到 v4
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: buildroot_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
-
