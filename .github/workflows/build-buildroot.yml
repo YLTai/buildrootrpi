@@ -1,6 +1,7 @@
 name: Build Buildroot (ARM Native)
 
 on:
+  workflow_dispatch:
   repository_dispatch:
   release:
     types: published
