@@ -39,21 +39,21 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        # 清理旧软件源和不必要的软件（针对 ARM 环境进行了简化）
+        sudo rm -rf /etc/apt/sources.list.d/*
         sudo -E apt-get -qq update
         
-        # 安装 Buildroot 编译所需的依赖 (替代了原脚本中过期的 curl 脚本)
-        sudo -E apt-get -qq install -y build-essential libncurses5-dev \
-          libncursesw5-dev git bc unzip rsync python3 cpio wget \
-          file unzip rsync python3-distutils bzip2 linux-headers-generic
+        # 修正依赖列表：
+        # 1. 移除了 python3-distutils (Python 3.12 已弃用)
+        # 2. 添加 python3-setuptools 和 python3-dev
+        # 3. 将 libncurses5-dev 替换为 libncurses-dev (通用名称)
+        sudo -E apt-get -qq install -y build-essential libncurses-dev \
+          libssl-dev git bc unzip rsync python3 python3-setuptools python3-dev \
+          cpio wget file bzip2 linux-headers-generic
           
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         
-        # 设置时区
         sudo timedatectl set-timezone "$TZ"
-        
-        # 创建工作目录
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
