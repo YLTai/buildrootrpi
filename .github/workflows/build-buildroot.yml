@@ -57,6 +57,16 @@ jobs:
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
 
+    - name: Cache Buildroot ccache
+      uses: actions/cache@v4
+      with:
+        # 这里的路径要和下面 .config 中配置的一致
+        path: ~/.buildroot-ccache
+        # Key 包含系统架构和配置文件哈希，确保环境变动时更新缓存
+        key: buildroot-ccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.config') }}
+        restore-keys: |
+          buildroot-ccache-${{ runner.os }}-${{ runner.arch }}-
+
     - name: Clone source code
       working-directory: /workdir
       run: |
