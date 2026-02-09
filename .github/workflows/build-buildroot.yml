@@ -39,16 +39,16 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        sudo rm -rf /etc/apt/sources.list.d/*
-        sudo -E apt-get -qq update
+        # --- 关键修改：不要删除 sources.list.d，否则在 Ubuntu 24.04 会丢失官方源 ---
+        # sudo rm -rf /etc/apt/sources.list.d/* sudo -E apt-get -qq update
         
-        # 修正依赖列表：
-        # 1. 移除了 python3-distutils (Python 3.12 已弃用)
-        # 2. 添加 python3-setuptools 和 python3-dev
-        # 3. 将 libncurses5-dev 替换为 libncurses-dev (通用名称)
+        # 安装依赖 (保留之前修正的 python3-setuptools 等)
         sudo -E apt-get -qq install -y build-essential libncurses-dev \
           libssl-dev git bc unzip rsync python3 python3-setuptools python3-dev \
-          cpio wget file bzip2 linux-headers-generic
+          cpio wget file bzip2
+          
+        # 注意：linux-headers 在某些精简容器/ARM runner 中可能不需要或名称不同
+        # 如果编译报错缺头文件，再尝试添加：linux-headers-$(uname -r)
           
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
